@@ -1,199 +1,479 @@
 <!doctype html>
 <html lang="ja">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f4f6ff">
-  <title>数字パズル</title>
-  <style>
-    :root {
-      color-scheme: light;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #f4f6ff;
-      color: #20243a;
-      font-synthesis: none;
-    }
-    * { box-sizing: border-box; }
-    body {
-      min-height: 100svh;
-      margin: 0;
-      padding: max(24px, env(safe-area-inset-top)) 18px max(24px, env(safe-area-inset-bottom));
-      display: grid;
-      place-items: center;
-    }
-    main { width: min(100%, 440px); text-align: center; }
-    .eyebrow { margin: 0 0 8px; color: #777e9b; font-size: .85rem; font-weight: 700; letter-spacing: .12em; }
-    h1 { margin: 0; font-size: clamp(2rem, 9vw, 2.7rem); letter-spacing: .04em; }
-    .subtitle { margin: 8px 0 24px; color: #737991; }
-    .stats { display: flex; justify-content: center; gap: 12px; margin: 0 0 18px; }
-    .stat { min-width: 116px; padding: 10px 16px; border: 1px solid #e6e9f5; border-radius: 16px; background: #fff; }
-    .stat-label { display: block; color: #858ba3; font-size: .78rem; }
-    .stat-value { display: block; margin-top: 2px; font-size: 1.25rem; font-weight: 800; font-variant-numeric: tabular-nums; }
-    .board {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-      width: min(100%, 390px);
-      aspect-ratio: 1;
-      margin: 0 auto;
-      padding: 10px;
-      border-radius: 24px;
-      background: #dfe4f5;
-      box-shadow: 0 14px 36px #323d651a;
-      touch-action: manipulation;
-    }
-    .tile, .empty { min-width: 0; border-radius: 17px; }
-    .tile {
-      border: 0;
-      background: #fff;
-      color: #4b56bd;
-      box-shadow: 0 4px 0 #cbd0e5;
-      font: inherit;
-      font-size: clamp(1.7rem, 10vw, 2.7rem);
-      font-weight: 800;
-      cursor: pointer;
-      -webkit-tap-highlight-color: transparent;
-      transition: transform .12s, background-color .12s;
-    }
-    .tile:active { transform: scale(.95); background: #f0f1ff; }
-    .tile:focus-visible, .action:focus-visible { outline: 3px solid #7883ff; outline-offset: 3px; }
-    .empty { background: #cfd5eb; }
-    .message { min-height: 30px; margin: 17px 0 8px; color: #4b56bd; font-weight: 700; }
-    .actions { display: flex; justify-content: center; gap: 10px; }
-    .action { min-height: 48px; padding: 0 20px; border: 0; border-radius: 14px; background: #4b56bd; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
-    .action.secondary { background: #e5e8f7; color: #454c76; }
-    .hint { margin: 18px 0 0; color: #858ba3; font-size: .85rem; }
-    @media (max-width: 360px) { .board { gap: 7px; padding: 7px; } .tile, .empty { border-radius: 13px; } }
-  </style>
-</head>
-<body>
-  <main>
-    <p class="eyebrow">ちょっとひと息</p>
-    <h1>数字パズル</h1>
-    <p class="subtitle">数字をスライドして、1から順番に並べよう！</p>
-
-    <section class="stats" aria-label="ゲームの記録">
-      <div class="stat"><span class="stat-label">手数</span><span class="stat-value" id="moves">0</span></div>
-      <div class="stat"><span class="stat-label">タイム</span><span class="stat-value" id="time">00:00</span></div>
-    </section>
-
-    <div class="board" id="board" role="group" aria-label="数字パズル盤面"></div>
-    <p class="message" id="message" aria-live="polite">「シャッフル」を押してスタート！</p>
-    <div class="actions">
-      <button class="action" id="shuffle" type="button">シャッフル</button>
-      <button class="action secondary" id="reset" type="button">やり直す</button>
-    </div>
-    <p class="hint">空いているマスのとなりの数字をタップ</p>
-  </main>
-
-  <script>
-    (() => {
-      const boardElement = document.querySelector('#board');
-      const movesElement = document.querySelector('#moves');
-      const timeElement = document.querySelector('#time');
-      const messageElement = document.querySelector('#message');
-      const solved = [1, 2, 3, 4, 5, 6, 7, 8, 0];
-      let tiles = [...solved];
-      let moves = 0;
-      let startedAt = null;
-      let timerId = null;
-      let finished = false;
-
-      function formatTime(seconds) {
-        const minutes = Math.floor(seconds / 60).toString().padStart(2, '0');
-        const remainder = (seconds % 60).toString().padStart(2, '0');
-        return `${minutes}:${remainder}`;
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#eef2ff" />
+    <title>スライドパズル</title>
+    <style>
+      :root {
+        --bg: #eef2ff;
+        --panel: rgba(255, 255, 255, 0.8);
+        --primary: #4f46e5;
+        --primary-dark: #3730a3;
+        --secondary: #dbeafe;
+        --accent: #f59e0b;
+        --text: #1f2937;
+        --muted: #64748b;
+        --tile: #ffffff;
+        --empty: #e2e8f0;
+        --shadow: 0 14px 30px rgba(79, 70, 229, 0.18);
       }
 
-      function render() {
-        boardElement.replaceChildren();
-        tiles.forEach((value, index) => {
-          if (value === 0) {
-            const empty = document.createElement('div');
-            empty.className = 'empty';
-            empty.setAttribute('aria-hidden', 'true');
-            boardElement.append(empty);
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: linear-gradient(180deg, #eef2ff 0%, #f8fafc 100%);
+        color: var(--text);
+        font-family: "Segoe UI", "Hiragino Sans", "Yu Gothic", sans-serif;
+      }
+
+      body {
+        min-height: 100svh;
+        display: grid;
+        place-items: center;
+        padding: 18px;
+      }
+
+      main {
+        width: min(100%, 430px);
+      }
+
+      .game {
+        background: var(--panel);
+        backdrop-filter: blur(6px);
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        border-radius: 28px;
+        padding: 20px 18px 18px;
+        box-shadow: var(--shadow);
+      }
+
+      .eyebrow {
+        margin: 0 0 8px;
+        text-align: center;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        font-size: 0.72rem;
+        font-weight: 800;
+        color: var(--muted);
+      }
+
+      h1 {
+        margin: 0;
+        text-align: center;
+        font-size: clamp(2rem, 8vw, 2.8rem);
+        letter-spacing: 0.06em;
+      }
+
+      .subtitle {
+        margin: 8px auto 18px;
+        text-align: center;
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 18px;
+      }
+
+      .stat {
+        background: rgba(255, 255, 255, 0.8);
+        border: 1px solid rgba(160, 174, 192, 0.2);
+        border-radius: 16px;
+        padding: 12px 8px 10px;
+        text-align: center;
+      }
+
+      .stat-label {
+        display: block;
+        font-size: 0.72rem;
+        color: var(--muted);
+      }
+
+      .stat-value {
+        display: block;
+        margin-top: 6px;
+        font-size: clamp(1.1rem, 5vw, 1.5rem);
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .board {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+        aspect-ratio: 1;
+        width: min(100%, 360px);
+        margin: 0 auto 16px;
+        padding: 10px;
+        border-radius: 26px;
+        background: rgba(148, 163, 184, 0.18);
+        box-shadow: inset 0 4px 10px rgba(148, 163, 184, 0.12);
+      }
+
+      .tile,
+      .empty {
+        border-radius: 18px;
+        user-select: none;
+      }
+
+      .tile {
+        display: grid;
+        place-items: center;
+        border: none;
+        background: linear-gradient(180deg, #ffffff 0%, #eef2ff 100%);
+        color: var(--primary-dark);
+        font-size: clamp(2rem, 8vw, 2.4rem);
+        font-weight: 800;
+        box-shadow: 0 6px 0 rgba(148, 163, 184, 0.35);
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+        transition: transform 0.1s ease, box-shadow 0.1s ease;
+      }
+
+      .tile:active {
+        transform: scale(0.96);
+        box-shadow: 0 3px 0 rgba(148, 163, 184, 0.25);
+      }
+
+      .tile:focus-visible,
+      .action:focus-visible {
+        outline: 3px solid rgba(79, 70, 229, 0.75);
+        outline-offset: 2px;
+      }
+
+      .empty {
+        background: rgba(203, 213, 225, 0.7);
+        border: 1px dashed rgba(100, 116, 139, 0.3);
+      }
+
+      .message {
+        min-height: 28px;
+        margin: 0 0 12px;
+        text-align: center;
+        font-weight: 700;
+        color: var(--primary-dark);
+      }
+
+      .actions {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+
+      .action {
+        border: none;
+        border-radius: 14px;
+        padding: 0 18px;
+        min-height: 48px;
+        background: var(--primary);
+        color: white;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+        box-shadow: 0 8px 16px rgba(79, 70, 229, 0.2);
+      }
+
+      .action.secondary {
+        background: #e2e8f0;
+        color: var(--text);
+        box-shadow: none;
+      }
+
+      .hint {
+        margin: 14px 0 0;
+        text-align: center;
+        color: var(--muted);
+        font-size: 0.8rem;
+      }
+
+      @media (max-width: 360px) {
+        .game {
+          padding-left: 12px;
+          padding-right: 12px;
+        }
+
+        .stats {
+          gap: 8px;
+        }
+
+        .board {
+          gap: 8px;
+          padding: 8px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="game" aria-label="数字パズルゲーム">
+        <p class="eyebrow">Mini Game</p>
+        <h1>パズル</h1>
+        <p class="subtitle">数字を並べて、1から8を揃えよう</p>
+
+        <div class="stats" aria-label="ゲームのゲーム情報">
+          <div class="stat">
+            <span class="stat-label">手数</span>
+            <span class="stat-value" id="moves">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">時間</span>
+            <span class="stat-value" id="time">00:00</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">ベスト</span>
+            <span class="stat-value" id="best">--</span>
+          </div>
+        </div>
+
+        <div class="board" id="board" role="grid" aria-label="数字パズルの盤面"></div>
+
+        <p class="message" id="message" aria-live="polite">「はじめる」を押してスタート</p>
+
+        <div class="actions">
+          <button class="action" id="start" type="button">はじめる</button>
+          <button class="action secondary" id="reset" type="button">やり直す</button>
+        </div>
+
+        <p class="hint">空きマスの隣の数字をタップして動かす</p>
+      </section>
+    </main>
+
+    <script>
+      (() => {
+        const board = document.getElementById('board');
+        const movesEl = document.getElementById('moves');
+        const timeEl = document.getElementById('time');
+        const bestEl = document.getElementById('best');
+        const messageEl = document.getElementById('message');
+        const startButton = document.getElementById('start');
+        const resetButton = document.getElementById('reset');
+
+        const solved = [1, 2, 3, 4, 5, 6, 7, 8, 0];
+        let tiles = [...solved];
+        let moves = 0;
+        let startedAt = null;
+        let timerId = null;
+        let status = 'ready';
+
+        function formatTime(seconds) {
+          const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+          const secs = (seconds % 60).toString().padStart(2, '0');
+          return `${mins}:${secs}`;
+        }
+
+        function getBestRecord() {
+          const raw = localStorage.getItem('slidePuzzleBest');
+          if (!raw) return null;
+          try {
+            return JSON.parse(raw);
+          } catch {
+            return null;
+          }
+        }
+
+        function saveBestRecord(movesCount, seconds) {
+          const record = { moves: movesCount, time: seconds };
+          const current = getBestRecord();
+          if (!current || record.moves < current.moves || (record.moves === current.moves && record.time < current.time)) {
+            localStorage.setItem('slidePuzzleBest', JSON.stringify(record));
+          }
+        }
+
+        function updateBestDisplay() {
+          const record = getBestRecord();
+          if (!record) {
+            bestEl.textContent = '--';
             return;
           }
-          const button = document.createElement('button');
-          button.className = 'tile';
-          button.type = 'button';
-          button.textContent = value;
-          button.setAttribute('aria-label', `数字 ${value}`);
-          button.addEventListener('click', () => moveTile(index));
-          boardElement.append(button);
-        });
-      }
-
-      function adjacent(a, b) {
-        const sameRow = Math.floor(a / 3) === Math.floor(b / 3);
-        return (sameRow && Math.abs(a - b) === 1) || Math.abs(a - b) === 3;
-      }
-
-      function moveTile(index) {
-        if (finished) return;
-        const emptyIndex = tiles.indexOf(0);
-        if (!adjacent(index, emptyIndex)) return;
-        if (startedAt === null) {
-          startedAt = Date.now();
-          timerId = window.setInterval(updateTime, 1000);
-          messageElement.textContent = '';
+          bestEl.textContent = `${record.moves}手 / ${formatTime(record.time)}`;
         }
-        [tiles[index], tiles[emptyIndex]] = [tiles[emptyIndex], tiles[index]];
-        moves += 1;
-        movesElement.textContent = moves;
-        render();
-        if (tiles.every((value, i) => value === solved[i])) {
-          finished = true;
-          window.clearInterval(timerId);
-          messageElement.textContent = `クリア！ ${moves}手・${timeElement.textContent}で完成！`;
+
+        function setStatus(text) {
+          messageEl.textContent = text;
         }
-      }
 
-      function updateTime() {
-        if (startedAt !== null) {
-          timeElement.textContent = formatTime(Math.floor((Date.now() - startedAt) / 1000));
+        function updateTimeDisplay() {
+          if (startedAt === null) {
+            timeEl.textContent = '00:00';
+            return;
+          }
+          const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+          timeEl.textContent = formatTime(elapsed);
         }
-      }
 
-      function resetStats(message = '「シャッフル」を押してスタート！') {
-        window.clearInterval(timerId);
-        timerId = null;
-        startedAt = null;
-        moves = 0;
-        finished = false;
-        movesElement.textContent = '0';
-        timeElement.textContent = '00:00';
-        messageElement.textContent = message;
-      }
+        function startTimer() {
+          if (timerId !== null) return;
+          timerId = window.setInterval(() => {
+            updateTimeDisplay();
+          }, 1000);
+        }
 
-      function shuffle() {
-        tiles = [...solved];
-        let previousEmpty = -1;
-        for (let step = 0; step < 120; step += 1) {
+        function stopTimer() {
+          if (timerId !== null) {
+            window.clearInterval(timerId);
+            timerId = null;
+          }
+        }
+
+        function setInitialState() {
+          tiles = [...solved];
+          moves = 0;
+          startedAt = null;
+          stopTimer();
+          status = 'ready';
+          movesEl.textContent = '0';
+          timeEl.textContent = '00:00';
+          setStatus('「はじめる」を押してスタート');
+          renderBoard();
+        }
+
+        function isAdjacent(indexA, indexB) {
+          const rowA = Math.floor(indexA / 3);
+          const colA = indexA % 3;
+          const rowB = Math.floor(indexB / 3);
+          const colB = indexB % 3;
+          const distance = Math.abs(rowA - rowB) + Math.abs(colA - colB);
+          return distance === 1;
+        }
+
+        function shuffleTiles() {
+          tiles = [...solved];
+          let emptyIndex = tiles.indexOf(0);
+
+          for (let i = 0; i < 180; i += 1) {
+            const neighbors = [];
+            const row = Math.floor(emptyIndex / 3);
+            const col = emptyIndex % 3;
+
+            if (row > 0) neighbors.push(emptyIndex - 3);
+            if (row < 2) neighbors.push(emptyIndex + 3);
+            if (col > 0) neighbors.push(emptyIndex - 1);
+            if (col < 2) neighbors.push(emptyIndex + 1);
+
+            const nextIndex = neighbors[Math.floor(Math.random() * neighbors.length)];
+            [tiles[emptyIndex], tiles[nextIndex]] = [tiles[nextIndex], tiles[emptyIndex]];
+            emptyIndex = nextIndex;
+          }
+
+          if (tiles.every((value, index) => value === solved[index])) {
+            [tiles[0], tiles[1]] = [tiles[1], tiles[0]];
+          }
+
+          moves = 0;
+          startedAt = null;
+          stopTimer();
+          status = 'playing';
+          movesEl.textContent = '0';
+          timeEl.textContent = '00:00';
+          setStatus('数字を動かして並べよう');
+          renderBoard();
+        }
+
+        function renderBoard() {
+          board.innerHTML = '';
+
+          tiles.forEach((value, index) => {
+            if (value === 0) {
+              const empty = document.createElement('div');
+              empty.className = 'empty';
+              empty.setAttribute('aria-label', '空きマス');
+              empty.setAttribute('aria-hidden', 'true');
+              board.appendChild(empty);
+              return;
+            }
+
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'tile';
+            button.textContent = value;
+            button.setAttribute('aria-label', `数字 ${value}`);
+            button.addEventListener('click', () => moveTile(index));
+            board.appendChild(button);
+          });
+        }
+
+        function isSolved() {
+          return tiles.every((value, index) => value === solved[index]);
+        }
+
+        function finishGame() {
+          status = 'finished';
+          stopTimer();
+          const elapsed = startedAt === null ? 0 : Math.floor((Date.now() - startedAt) / 1000);
+          saveBestRecord(moves, elapsed);
+          updateBestDisplay();
+          const resultText = `クリア！ ${moves}手・${formatTime(elapsed)}で完成しました！`;
+          setStatus(resultText);
+        }
+
+        function moveTile(index) {
           const emptyIndex = tiles.indexOf(0);
-          const choices = tiles
-            .map((_, index) => index)
-            .filter(index => adjacent(index, emptyIndex) && index !== previousEmpty);
-          const nextIndex = choices[Math.floor(Math.random() * choices.length)];
-          [tiles[nextIndex], tiles[emptyIndex]] = [tiles[emptyIndex], tiles[nextIndex]];
-          previousEmpty = emptyIndex;
-        }
-        if (tiles.every((value, i) => value === solved[i])) {
-          [tiles[7], tiles[8]] = [tiles[8], tiles[7]];
-        }
-        resetStats('数字をタップして始めよう！');
-        render();
-      }
+          if (!isAdjacent(index, emptyIndex)) return;
 
-      document.querySelector('#shuffle').addEventListener('click', shuffle);
-      document.querySelector('#reset').addEventListener('click', () => {
-        tiles = [...solved];
-        resetStats();
-        render();
-      });
-      render();
-    })();
-  </script>
-</body>
+          if (status === 'ready') {
+            status = 'playing';
+            startedAt = Date.now();
+            startTimer();
+          }
+
+          if (status === 'finished') return;
+
+          [tiles[index], tiles[emptyIndex]] = [tiles[emptyIndex], tiles[index]];
+          moves += 1;
+          movesEl.textContent = String(moves);
+          renderBoard();
+
+          if (isSolved()) {
+            finishGame();
+          } else {
+            setStatus('いい感じ！次はどこを動かす？');
+          }
+        }
+
+        document.addEventListener('keydown', (event) => {
+          const emptyIndex = tiles.indexOf(0);
+          const row = Math.floor(emptyIndex / 3);
+          const col = emptyIndex % 3;
+          let targetIndex = -1;
+
+          if (event.key === 'ArrowLeft' && col < 2) targetIndex = emptyIndex + 1;
+          if (event.key === 'ArrowRight' && col > 0) targetIndex = emptyIndex - 1;
+          if (event.key === 'ArrowUp' && row < 2) targetIndex = emptyIndex + 3;
+          if (event.key === 'ArrowDown' && row > 0) targetIndex = emptyIndex - 3;
+
+          if (targetIndex !== -1) {
+            moveTile(targetIndex);
+          }
+        });
+
+        startButton.addEventListener('click', () => {
+          shuffleTiles();
+          startedAt = Date.now();
+          startTimer();
+          status = 'playing';
+          setStatus('スタート！数字を並べてね');
+        });
+
+        resetButton.addEventListener('click', () => {
+          setInitialState();
+        });
+
+        updateBestDisplay();
+        setInitialState();
+      })();
+    </script>
+  </body>
 </html>
