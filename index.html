@@ -394,20 +394,29 @@
         },
       };
 
+      let disposeGame;
+
+      function closeGame() {
+        disposeGame?.();
+        disposeGame = undefined;
+        gameContainer.innerHTML = '';
+      }
+
       function showHome() {
+        closeGame();
         homeScreen.classList.add('active');
         gameScreen.classList.remove('active');
-        gameContainer.innerHTML = '';
       }
 
       function showGame(name) {
         const game = gameMap[name];
         if (!game) return;
 
+        closeGame();
         gameTitle.textContent = game.title;
         homeScreen.classList.remove('active');
         gameScreen.classList.add('active');
-        game.render();
+        disposeGame = game.render();
       }
 
       document.querySelectorAll('[data-game]').forEach((button) => {
@@ -431,7 +440,7 @@
         let status = 'ready';
 
         function getBestRecord() {
-          const raw = localStorage.getItem('miniGamePuzzleBest');
+          const raw = localStorage.getItem('miniGamePuzzleBest') ?? localStorage.getItem('slidePuzzleBest');
           if (!raw) return null;
           try {
             return JSON.parse(raw);
@@ -560,8 +569,9 @@
             emptyIndex = nextIndex;
           }
 
-          if (tiles.every((value, index) => value === solved[index])) {
-            [tiles[0], tiles[1]] = [tiles[1], tiles[0]];
+          if (isSolved()) {
+            const neighborIndex = emptyIndex - 1;
+            [tiles[emptyIndex], tiles[neighborIndex]] = [tiles[neighborIndex], tiles[emptyIndex]];
           }
 
           moves = 0;
@@ -625,7 +635,7 @@
 
         document.getElementById('puzzle-reset').addEventListener('click', resetGame);
 
-        document.addEventListener('keydown', (event) => {
+        function handleKeyDown(event) {
           const emptyIndex = tiles.indexOf(0);
           const row = Math.floor(emptyIndex / 3);
           const col = emptyIndex % 3;
@@ -637,7 +647,13 @@
           if (event.key === 'ArrowDown' && row > 0) targetIndex = emptyIndex - 3;
 
           if (targetIndex !== -1) moveTile(targetIndex);
-        });
+        }
+
+        document.addEventListener('keydown', handleKeyDown);
+        return () => {
+          document.removeEventListener('keydown', handleKeyDown);
+          stopTimer();
+        };
       }
 
       function renderTicTacToeGame() {
@@ -736,6 +752,7 @@
         let deck = [];
         let flippedIndexes = [];
         let lockBoard = false;
+        let flipBackTimerId = null;
         let matchedCount = 0;
         let moves = 0;
 
@@ -749,7 +766,6 @@
         }
 
         function setStatus(text) {
-          const statusLine = document.getElementById('memory-status');
           statusLine.textContent = text;
         }
 
@@ -757,23 +773,25 @@
           const boardEl = document.getElementById('memory-board');
           boardEl.innerHTML = '';
 
-          deck.forEach((symbol, index) => {
+          deck.forEach(({ symbol, matched }, index) => {
+            const revealed = flippedIndexes.includes(index) || matched;
             const button = document.createElement('button');
             button.type = 'button';
             button.className = 'memory-card';
-            button.textContent = flippedIndexes.includes(index) || deck[index].matched ? symbol : '?';
-            button.disabled = lockBoard || flippedIndexes.includes(index) || deck[index].matched;
+            button.textContent = revealed ? symbol : '?';
+            button.disabled = lockBoard || revealed;
 
-            if (flippedIndexes.includes(index) || deck[index].matched) {
+            if (revealed) {
               button.classList.add('revealed');
             }
-            if (deck[index].matched) {
+            if (matched) {
               button.classList.add('matched');
             }
 
             button.addEventListener('click', () => handleFlip(index));
             boardEl.appendChild(button);
           });
+          progressEl.textContent = `${matchedCount} / ${symbols.length}`;
         }
 
         function checkMatched() {
@@ -801,7 +819,9 @@
 
           setStatus('違うカードです');
           lockBoard = true;
-          window.setTimeout(() => {
+          renderBoard();
+          flipBackTimerId = window.setTimeout(() => {
+            flipBackTimerId = null;
             flippedIndexes = [];
             lockBoard = false;
             renderBoard();
@@ -811,14 +831,23 @@
         function handleFlip(index) {
           if (lockBoard || flippedIndexes.includes(index) || deck[index].matched) return;
           flippedIndexes.push(index);
-          renderBoard();
 
           if (flippedIndexes.length === 2) {
             checkMatched();
+          } else {
+            renderBoard();
+          }
+        }
+
+        function cancelFlipBack() {
+          if (flipBackTimerId !== null) {
+            window.clearTimeout(flipBackTimerId);
+            flipBackTimerId = null;
           }
         }
 
         function resetGame() {
+          cancelFlipBack();
           const shuffled = shuffle(cards);
           deck = shuffled.map((symbol) => ({ symbol, matched: false }));
           flippedIndexes = [];
@@ -853,33 +882,10 @@
         const statusLine = document.getElementById('memory-status');
         const progressEl = document.getElementById('memory-progress');
 
-        const oldSetStatus = setStatus;
-        setStatus = (text) => {
-          statusLine.textContent = text;
-        };
-
-        function updateProgress() {
-          progressEl.textContent = `${matchedCount} / ${symbols.length}`;
-        }
-
-        const originalSetStatus = setStatus;
-        setStatus = (text) => {
-          statusLine.textContent = text;
-        };
-
-        const originalRenderBoard = renderBoard;
-        renderBoard = () => {
-          originalRenderBoard();
-          updateProgress();
-        };
-
         document.getElementById('memory-reset').addEventListener('click', resetGame);
         resetGame();
+        return cancelFlipBack;
       }
-
-      document.querySelectorAll('[data-game]').forEach((button) => {
-        button.addEventListener('click', () => showGame(button.dataset.game));
-      });
     </script>
   </body>
 </html>
