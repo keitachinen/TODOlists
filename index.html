@@ -270,6 +270,76 @@
         border: 1px dashed rgba(100, 116, 139, 0.3);
       }
 
+      .ttt-options {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .ttt-options select {
+        max-width: 100%;
+        min-height: 44px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: white;
+        color: var(--text);
+        padding: 6px 8px;
+        font: inherit;
+      }
+
+      .ttt-rules {
+        margin: 8px auto 12px;
+        max-width: 26rem;
+        text-align: center;
+        color: var(--muted);
+        font-size: 0.9rem;
+        line-height: 1.5;
+      }
+
+      #ttt-sizes {
+        margin: 0 0 12px;
+        text-align: center;
+      }
+
+      #ttt-size-heading {
+        margin: 0 0 6px;
+      }
+
+      .ttt-size-buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: center;
+      }
+
+      .ttt-size-buttons button[aria-pressed="true"] {
+        background: var(--primary);
+        color: white;
+      }
+
+      .ttt-size-buttons button:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+
+      .ttt-mark {
+        display: block;
+        line-height: 1;
+      }
+
+      .ttt-mark.size-1 { font-size: 0.55em; }
+      .ttt-mark.size-2 { font-size: 0.77em; }
+      .ttt-mark.size-3 { font-size: 1em; }
+
+      .cell.ttt-fading {
+        outline: 2px dashed var(--primary);
+        outline-offset: -4px;
+      }
+
+      .ttt-fading .ttt-mark { opacity: 0.55; }
+
       .tictactoe-board {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -657,92 +727,203 @@
       }
 
       function renderTicTacToeGame() {
-        let board = Array(9).fill('');
-        let currentTurn = 'O';
-        let winner = null;
-        let gameOver = false;
-
+        const sizes = [
+          { value: 1, label: '小' },
+          { value: 2, label: '中' },
+          { value: 3, label: '大' },
+        ];
+        const modes = {
+          standard: '空いているマスに置き、先に3つ並べた方が勝ちです。',
+          rolling: '自分の4つ目のコマを空きマスに置くと、自分の一番古いコマが消えます。',
+          stacking: '大・中・小を各2個持っています。空きマスか、自分・相手の小さいコマの上に置けます。一番上に見えているコマで勝敗を判定します。',
+        };
         const lines = [
           [0, 1, 2], [3, 4, 5], [6, 7, 8],
           [0, 3, 6], [1, 4, 7], [2, 5, 8],
           [0, 4, 8], [2, 4, 6],
         ];
 
-        function checkWinner() {
-          for (const [a, b, c] of lines) {
-            if (board[a] && board[a] === board[b] && board[a] === board[c]) {
-              return board[a];
-            }
+        let board;
+        let turn;
+        let gameOver;
+        let history;
+        let stock;
+        let selectedSize;
+        let mode = 'standard';
+
+        function canPlace(cell, player, size) {
+          if (mode !== 'stacking') return cell === null;
+          return size !== null && stock[player][size] > 0 && (!cell || size > cell.size);
+        }
+
+        function availableSize(player) {
+          for (const { value } of sizes) {
+            if (board.some((cell) => canPlace(cell, player, value))) return value;
           }
           return null;
         }
 
-        function updateStatus(text) {
-          const statusLine = document.getElementById('ttt-status');
-          statusLine.textContent = text;
+        function checkWinner() {
+          for (const [a, b, c] of lines) {
+            const mark = board[a]?.mark;
+            if (mark && mark === board[b]?.mark && mark === board[c]?.mark) return mark;
+          }
+          return null;
         }
 
         function renderBoard() {
-          const boardEl = document.getElementById('ttt-board');
-          boardEl.innerHTML = '';
+          const oldest = mode === 'rolling' && history[turn].length === 3
+            ? history[turn][0]
+            : -1;
 
           board.forEach((cell, index) => {
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.className = 'cell';
-            button.textContent = cell;
-            button.disabled = Boolean(cell) || gameOver;
-            button.addEventListener('click', () => handleMove(index));
-            boardEl.appendChild(button);
+            const button = cells[index];
+            const mark = button.firstElementChild;
+            const fading = !gameOver && index === oldest;
+            mark.textContent = cell?.mark ?? '';
+            mark.className = cell?.size ? 'ttt-mark size-' + cell.size : 'ttt-mark';
+            button.disabled = gameOver || !canPlace(cell, turn, selectedSize);
+            button.classList.toggle('ttt-fading', fading);
+
+            const sizeLabel = cell?.size ? '・' + sizes[cell.size - 1].label : '';
+            const state = cell ? cell.mark + sizeLabel : '空き';
+            button.setAttribute('aria-label', (index + 1) + '番：' + state + (fading ? '、次の手で消える' : ''));
           });
         }
 
-        function handleMove(index) {
-          if (board[index] || gameOver) return;
-
-          board[index] = currentTurn;
-          const result = checkWinner();
-
-          if (result) {
-            winner = result;
-            gameOver = true;
-            updateStatus(`${result} の勝ち！`);
-            renderBoard();
-            return;
-          }
-
-          if (board.every(Boolean)) {
-            gameOver = true;
-            updateStatus('引き分けです！');
-            renderBoard();
-            return;
-          }
-
-          currentTurn = currentTurn === 'O' ? 'X' : 'O';
-          updateStatus(`${currentTurn} の番です`);
+        function render() {
           renderBoard();
+          sizePicker.hidden = mode !== 'stacking';
+          sizeHeading.textContent = turn + ' の手持ち';
+          sizeButtons.forEach((button, index) => {
+            const { value, label } = sizes[index];
+            button.textContent = label + ' × ' + stock[turn][value];
+            button.disabled = gameOver || !board.some((cell) => canPlace(cell, turn, value));
+            button.setAttribute('aria-pressed', String(!gameOver && selectedSize === value));
+          });
+        }
+
+        function finish(text) {
+          gameOver = true;
+          statusLine.textContent = text;
+          render();
+          resetButton.focus();
+        }
+
+        function handleMove(index) {
+          if (gameOver || !canPlace(board[index], turn, selectedSize)) return;
+
+          board[index] = { mark: turn, size: mode === 'stacking' ? selectedSize : null };
+
+          if (mode === 'stacking') {
+            stock[turn][selectedSize] -= 1;
+          } else if (mode === 'rolling') {
+            const moves = history[turn];
+            moves.push(index);
+            if (moves.length > 3) board[moves.shift()] = null;
+          }
+
+          const winner = checkWinner();
+          if (winner) {
+            finish(winner + ' の勝ち！');
+            return;
+          }
+
+          if (mode === 'standard' && board.every(Boolean)) {
+            finish('引き分けです！');
+            return;
+          }
+
+          const previous = turn;
+          const next = turn === 'O' ? 'X' : 'O';
+          turn = next;
+          if (mode === 'stacking') {
+            selectedSize = availableSize(next);
+            if (selectedSize === null) {
+              selectedSize = availableSize(previous);
+              if (selectedSize === null) {
+                finish('どちらも置けるコマがなく、引き分けです！');
+                return;
+              }
+              turn = previous;
+            }
+          }
+
+          statusLine.textContent = turn === next
+            ? turn + ' の番です'
+            : next + ' は置けるコマがないため、続けて ' + turn + ' の番です';
+          render();
+          if (cells[index].disabled) cells.find((button) => !button.disabled)?.focus();
         }
 
         function resetGame() {
-          board = Array(9).fill('');
-          currentTurn = 'O';
-          winner = null;
+          board = Array(9).fill(null);
+          turn = 'O';
           gameOver = false;
-          updateStatus('O の番です');
-          renderBoard();
+          history = { O: [], X: [] };
+          stock = { O: [0, 2, 2, 2], X: [0, 2, 2, 2] };
+          selectedSize = mode === 'stacking' ? availableSize(turn) : null;
+          rules.textContent = modes[mode];
+          statusLine.textContent = 'O の番です';
+          render();
         }
 
         gameContainer.innerHTML = `
           <div>
-            <p id="ttt-status" class="status-line">O の番です</p>
-            <div id="ttt-board" class="tictactoe-board" aria-label="○×ゲームの盤面"></div>
+            <div class="ttt-options">
+              <label for="ttt-mode">難易度・ルール</label>
+              <select id="ttt-mode" aria-describedby="ttt-rules">
+                <option value="standard">通常</option>
+                <option value="rolling">応用：4つ目で消える</option>
+                <option value="stacking">上級：大・中・小で上書き</option>
+              </select>
+            </div>
+            <p id="ttt-rules" class="ttt-rules"></p>
+            <p id="ttt-status" class="status-line" role="status"></p>
+            <div id="ttt-sizes" hidden>
+              <p id="ttt-size-heading"></p>
+              <div class="ttt-size-buttons" role="group" aria-labelledby="ttt-size-heading">
+                <button type="button" class="game-action"></button>
+                <button type="button" class="game-action"></button>
+                <button type="button" class="game-action"></button>
+              </div>
+            </div>
+            <div id="ttt-board" class="tictactoe-board" role="group" aria-label="○×ゲームの盤面"></div>
             <div class="actions-row">
               <button type="button" class="action" id="ttt-reset">もう一度</button>
             </div>
           </div>
         `;
 
-        document.getElementById('ttt-reset').addEventListener('click', resetGame);
+        const modeSelect = document.getElementById('ttt-mode');
+        const rules = document.getElementById('ttt-rules');
+        const statusLine = document.getElementById('ttt-status');
+        const sizePicker = document.getElementById('ttt-sizes');
+        const sizeHeading = document.getElementById('ttt-size-heading');
+        const sizeButtons = [...sizePicker.querySelectorAll('button')];
+        const boardEl = document.getElementById('ttt-board');
+        const resetButton = document.getElementById('ttt-reset');
+        const cells = Array.from({ length: 9 }, (_, index) => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'cell';
+          button.appendChild(document.createElement('span'));
+          button.addEventListener('click', () => handleMove(index));
+          boardEl.appendChild(button);
+          return button;
+        });
+
+        sizeButtons.forEach((button, index) => {
+          button.addEventListener('click', () => {
+            selectedSize = sizes[index].value;
+            render();
+          });
+        });
+        modeSelect.addEventListener('change', () => {
+          mode = modeSelect.value;
+          resetGame();
+        });
+        resetButton.addEventListener('click', resetGame);
         resetGame();
       }
 
